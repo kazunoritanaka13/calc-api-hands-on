@@ -1,4 +1,4 @@
-name: CI
+name: CI - security and tests
 
 on:
   push:
@@ -6,8 +6,39 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  security-events: write
+  checks: write
+
 jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python
+      - name: Autobuild (if needed)
+        uses: github/codeql-action/autobuild@v2
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v2
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run dependency review
+        uses: github/dependency-review-action@v3
+
   test:
+    name: Unit tests (pytest)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,26 +52,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install -r src/requirements.txt || true
           pip install -r requirements-dev.txt
       - name: Run tests
-        run: |
-          pytest -q
+        run: pytest -q
 
-# Optional deploy job (requires secrets and configuration)
-# deploy:
-#   runs-on: ubuntu-latest
-#   needs: test
-#   steps:
-#     - uses: actions/checkout@v4
-#     - name: 'Azure Login'
-#       uses: azure/login@v1
-#       with:
-#         creds: ${{ secrets.AZURE_CREDENTIALS }}
-#     - name: 'Deploy to Azure Functions'
-#       uses: azure/functions-action@v1
-#       with:
-#         app-name: <FUNCTION_APP_NAME>
-#         package: '.'
-#       env:
-#         SCM_DO_BUILD_DURING_DEPLOYMENT: true
+# NOTE: No deploy job is configured. The workflow runs CodeQL, dependency review, and unit tests
+# for both PRs to 'main' and pushes to 'main'. It intentionally does NOT perform any deployment.
